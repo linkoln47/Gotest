@@ -5,6 +5,19 @@ import (
 	"fmt"
 )
 
+type MyError struct {
+	Code   int
+	Errors []error
+}
+
+func (m MyError) Error() string {
+	return errors.Join(m.Errors...).Error()
+}
+
+func (m MyError) Unwrap() []error {
+	return m.Errors
+}
+
 type Person struct {
 	FirstName string
 	LastName  string
@@ -23,7 +36,10 @@ func ValidatePerson(p Person) error {
 		err3 = errors.New("field Age cannot be negative")
 	}
 	if err1 != nil || err2 != nil || err3 != nil {
-		err := fmt.Errorf("validation failed with errors: %w, %w, %w", err1, err2, err3)
+		err := MyError{
+			Code:   400,
+			Errors: []error{err1, err2, err3},
+		}
 		return err
 	}
 	return nil
