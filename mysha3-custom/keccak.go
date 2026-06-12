@@ -1,5 +1,42 @@
 package main
 
+type KeccakXOF struct {
+	state     [25]uint64
+	rateBytes int
+	domain    byte
+}
+
+func NewKeccakXOF(rateBytes int, domain byte) *KeccakXOF {
+	return &KeccakXOF{
+		rateBytes: rateBytes,
+		domain:    domain,
+	}
+}
+
+func (x *KeccakXOF) Reset() {
+	x.state = [25]uint64{}
+}
+
+func (x *KeccakXOF) Absorb(input []byte) {
+	padded := padMsg(input, x.rateBytes, x.domain)
+
+	for offset := 0; offset < len(padded); offset += x.rateBytes {
+		block := padded[offset : offset+x.rateBytes]
+		absorbBlock(&x.state, block)
+		keccakF1600(&x.state)
+	}
+}
+
+func (x *KeccakXOF) Squeeze(outLenBytes int) []byte {
+	return squeeze(&x.state, x.rateBytes, outLenBytes)
+}
+
+func (x *KeccakXOF) Sum(input []byte, outLenBytes int) []byte {
+	x.Reset()
+	x.Absorb(input)
+	return x.Squeeze(outLenBytes)
+}
+
 func padMsg(input []byte, rateBytes int, domain byte) []byte {
 	paddedLen := ((len(input) / rateBytes) + 1) * rateBytes
 
@@ -38,18 +75,10 @@ func squeeze(state *[25]uint64, rateBytes, outLenBytes int) []byte {
 			need = rateBytes
 		}
 
-		for i := 0; i < need/8; i++ {
-			lane := state[i]
-			digest = append(digest,
-				byte(lane),
-				byte(lane>>8),
-				byte(lane>>16),
-				byte(lane>>24),
-				byte(lane>>32),
-				byte(lane>>40),
-				byte(lane>>48),
-				byte(lane>>56),
-			)
+		for i := 0; i < need; i++ {
+			lane := state[i/8]
+			shift := uint((i % 8) * 8)
+			digest = append(digest, byte(lane>>shift))
 		}
 
 		if len(digest) < outLenBytes {
@@ -60,16 +89,8 @@ func squeeze(state *[25]uint64, rateBytes, outLenBytes int) []byte {
 }
 
 func keccakXOF(rateBytes int, input []byte, domain byte, outLenBytes int) []byte {
-	var state [25]uint64
-
-	padded := padMsg(input, rateBytes, domain)
-
-	for offset := 0; offset < len(padded); offset += rateBytes {
-		block := padded[offset : offset+rateBytes]
-		absorbBlock(&state, block)
-		keccakF1600(&state)
-	}
-	return squeeze(&state, rateBytes, outLenBytes)
+	xof := NewKeccakXOF(rateBytes, domain)
+	return xof.Sum(input, outLenBytes)
 }
 
 func rotl(x uint64, n uint) uint64 {
