@@ -1,9 +1,14 @@
-package main
+package mysha256
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+)
+
+const (
+	BlockSize = 64
+	Size      = 32
 )
 
 var k = [64]uint32{
@@ -123,7 +128,7 @@ func cmprBlock(H *[8]uint32, block []byte) {
 	H[7] += h
 }
 
-func sum(msg []byte) [32]byte {
+func Sum(msg []byte) [32]byte {
 	padded := padMsg(msg)
 
 	h := initialHash
@@ -148,7 +153,7 @@ func sum(msg []byte) [32]byte {
 func main() {
 	msg := "abc"
 
-	myhash := sum([]byte(msg))
+	myhash := Sum([]byte(msg))
 	hash := sha256.Sum256([]byte(msg))
 
 	fmt.Println(hex.EncodeToString(myhash[:]))
